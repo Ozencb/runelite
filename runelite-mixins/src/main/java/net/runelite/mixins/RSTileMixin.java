@@ -27,6 +27,7 @@ package net.runelite.mixins;
 import java.util.ArrayList;
 import java.util.List;
 import net.runelite.api.Actor;
+import net.runelite.api.CollisionData;
 import net.runelite.api.CollisionDataFlag;
 import net.runelite.api.Constants;
 import net.runelite.api.DecorativeObject;
@@ -59,7 +60,6 @@ import net.runelite.api.mixins.Inject;
 import net.runelite.api.mixins.Mixin;
 import net.runelite.api.mixins.Shadow;
 import net.runelite.rs.api.RSClient;
-import net.runelite.rs.api.RSCollisionData;
 import net.runelite.rs.api.RSDeque;
 import net.runelite.rs.api.RSGameObject;
 import net.runelite.rs.api.RSItem;
@@ -295,7 +295,6 @@ public abstract class RSTileMixin implements RSTile
 				for (RSNode cur = head.getNext(); cur != head; cur = cur.getNext())
 				{
 					RSItem item = (RSItem) cur;
-					client.getLogger().debug("Item despawn (chunk reset): {} ({})", item.getId(), item.getQuantity());
 					ItemDespawned itemDespawned = new ItemDespawned(this, item);
 					client.getCallbacks().post(itemDespawned);
 				}
@@ -314,7 +313,6 @@ public abstract class RSTileMixin implements RSTile
 		{
 			if (lastUnlink != null)
 			{
-				client.getLogger().debug("Item despawn: {} ({})", lastUnlink.getId(), lastUnlink.getQuantity());
 				ItemDespawned itemDespawned = new ItemDespawned(this, lastUnlink);
 				client.getCallbacks().post(itemDespawned);
 			}
@@ -327,7 +325,6 @@ public abstract class RSTileMixin implements RSTile
 		{
 			if (lastUnlink != null)
 			{
-				client.getLogger().debug("Item despawn: {} ({})", lastUnlink.getId(), lastUnlink.getQuantity());
 				ItemDespawned itemDespawned = new ItemDespawned(this, lastUnlink);
 				client.getCallbacks().post(itemDespawned);
 			}
@@ -361,7 +358,6 @@ public abstract class RSTileMixin implements RSTile
 
 		if (lastUnlink != null && lastUnlink != previous && lastUnlink != next)
 		{
-			client.getLogger().debug("Item despawn: {} ({})", lastUnlink.getId(), lastUnlink.getQuantity());
 			ItemDespawned itemDespawned = new ItemDespawned(this, lastUnlink);
 			client.getCallbacks().post(itemDespawned);
 		}
@@ -374,7 +370,6 @@ public abstract class RSTileMixin implements RSTile
 		do
 		{
 			RSItem item = (RSItem) current;
-			client.getLogger().debug("Item spawn: {} ({})", item.getId(), item.getQuantity());
 			item.setX(x);
 			item.setY(y);
 
@@ -399,7 +394,12 @@ public abstract class RSTileMixin implements RSTile
 			return false;
 		}
 
-		RSCollisionData[] collisionData = client.getCollisionMaps();
+		CollisionData[] collisionData = client.getCollisionMaps();
+		if (collisionData == null)
+		{
+			return false;
+		}
+
 		int z = this.getPlane();
 		int[][] collisionDataFlags = collisionData[z].getFlags();
 

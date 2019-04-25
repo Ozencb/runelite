@@ -25,7 +25,6 @@
  */
 package net.runelite.client.plugins.worldmap;
 
-import com.google.common.eventbus.Subscribe;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
@@ -36,6 +35,8 @@ import net.runelite.api.Skill;
 import net.runelite.api.events.ConfigChanged;
 import net.runelite.api.events.ExperienceChanged;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.AgilityShortcut;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
@@ -44,13 +45,13 @@ import net.runelite.client.util.ImageUtil;
 @PluginDescriptor(
 	name = "World Map",
 	description = "Enhance the world map to display additional information",
-	tags = {"agility", "fairy", "rings", "teleports"}
+	tags = {"agility", "fairy", "farming", "rings", "teleports"}
 )
 public class WorldMapPlugin extends Plugin
 {
 	static final BufferedImage BLANK_ICON;
-	static final BufferedImage FAIRY_TRAVEL_ICON;
-	static final BufferedImage NOPE_ICON;
+	private static final BufferedImage FAIRY_TRAVEL_ICON;
+	private static final BufferedImage NOPE_ICON;
 
 	static final String CONFIG_KEY = "worldmap";
 	static final String CONFIG_KEY_FAIRY_RING_TOOLTIPS = "fairyRingTooltips";
@@ -66,6 +67,10 @@ public class WorldMapPlugin extends Plugin
 	static final String CONFIG_KEY_MISC_TELEPORT_ICON = "miscellaneousTeleportIcon";
 	static final String CONFIG_KEY_QUEST_START_TOOLTIPS = "questStartTooltips";
 	static final String CONFIG_KEY_MINIGAME_TOOLTIP = "minigameTooltip";
+	static final String CONFIG_KEY_FARMING_PATCH_TOOLTIPS = "farmingpatchTooltips";
+	static final String CONFIG_KEY_RARE_TREE_TOOLTIPS = "rareTreeTooltips";
+	static final String CONFIG_KEY_RARE_TREE_LEVEL_ICON = "rareTreeIcon";
+	static final String CONFIG_KEY_TRANSPORATION_TELEPORT_TOOLTIPS = "transportationTooltips";
 
 	static
 	{
@@ -93,6 +98,7 @@ public class WorldMapPlugin extends Plugin
 	private WorldMapPointManager worldMapPointManager;
 
 	private int agilityLevel = 0;
+	private int woodcuttingLevel = 0;
 
 	@Provides
 	WorldMapConfig provideConfig(ConfigManager configManager)
@@ -100,120 +106,12 @@ public class WorldMapPlugin extends Plugin
 		return configManager.getConfig(WorldMapConfig.class);
 	}
 
-	@Subscribe
-	public void onConfigChanged(ConfigChanged event)
-	{
-		if (event.getGroup().equals(CONFIG_KEY))
-		{
-			switch (event.getKey())
-			{
-				case CONFIG_KEY_FAIRY_RING_TOOLTIPS:
-					if (config.fairyRingTooltips())
-					{
-						Arrays.stream(FairyRingLocation.values())
-							.map(FairyRingLocation::getFairyRingPoint)
-							.forEach(worldMapPointManager::add);
-					}
-					else
-					{
-						worldMapPointManager.removeIf(FairyRingPoint.class::isInstance);
-					}
-					break;
-				case CONFIG_KEY_FAIRY_RING_ICON:
-					FairyRingLocation.setIcon(config.fairyRingIcon() ? FAIRY_TRAVEL_ICON : BLANK_ICON);
-					break;
-				case CONFIG_KEY_AGILITY_SHORTCUT_TOOLTIPS:
-				case CONFIG_KEY_AGILITY_SHORTCUT_LEVEL_ICON:
-					worldMapPointManager.removeIf(AgilityShortcutPoint.class::isInstance);
-
-					if (config.agilityShortcutTooltips())
-					{
-						int agilityLevel = client.getRealSkillLevel(Skill.AGILITY);
-
-						Arrays.stream(AgilityShortcutLocation.values())
-							.map(value -> new AgilityShortcutPoint(value, config.agilityShortcutLevelIcon() && value.getLevelReq() > agilityLevel ? NOPE_ICON : BLANK_ICON))
-							.forEach(worldMapPointManager::add);
-					}
-					break;
-				case CONFIG_KEY_QUEST_START_TOOLTIPS:
-					worldMapPointManager.removeIf(QuestStartPoint.class::isInstance);
-
-					if (config.questStartTooltips())
-					{
-						Arrays.stream(QuestStartLocation.values())
-							.map(value -> new QuestStartPoint(value, BLANK_ICON))
-							.forEach(worldMapPointManager::add);
-					}
-					break;
-				case CONFIG_KEY_MINIGAME_TOOLTIP:
-					if (config.minigameTooltip())
-					{
-						Arrays.stream(MinigameLocation.values())
-							.map(value -> new MinigamePoint(value, BLANK_ICON))
-							.forEach(worldMapPointManager::add);
-					}
-					else
-					{
-						worldMapPointManager.removeIf(MinigamePoint.class::isInstance);
-					}
-					break;
-				case CONFIG_KEY_NORMAL_TELEPORT_ICON:
-				case CONFIG_KEY_ANCIENT_TELEPORT_ICON:
-				case CONFIG_KEY_LUNAR_TELEPORT_ICON:
-				case CONFIG_KEY_ARCEUUS_TELEPORT_ICON:
-				case CONFIG_KEY_JEWELLERY_TELEPORT_ICON:
-				case CONFIG_KEY_MISC_TELEPORT_ICON:
-				case CONFIG_KEY_SCROLL_TELEPORT_ICON:
-					worldMapPointManager.removeIf(TeleportPoint.class::isInstance);
-					createMagicTeleportPoints();
-					break;
-			}
-		}
-	}
-
 	@Override
 	protected void startUp() throws Exception
 	{
-		FairyRingLocation.setIcon(config.fairyRingIcon() ? FAIRY_TRAVEL_ICON : BLANK_ICON);
-
-		if (config.fairyRingTooltips())
-		{
-			Arrays.stream(FairyRingLocation.values())
-				.map(FairyRingLocation::getFairyRingPoint)
-				.forEach(worldMapPointManager::add);
-		}
-
-		if (config.agilityShortcutTooltips())
-		{
-			Arrays.stream(AgilityShortcutLocation.values())
-				.map(value -> new AgilityShortcutPoint(value, BLANK_ICON))
-				.forEach(worldMapPointManager::add);
-		}
-
-		if (config.questStartTooltips())
-		{
-			Arrays.stream(QuestStartLocation.values())
-				.map(value -> new QuestStartPoint(value, BLANK_ICON))
-				.forEach(worldMapPointManager::add);
-		}
-
-		if (config.minigameTooltip())
-		{
-			Arrays.stream(MinigameLocation.values())
-				.map(value -> new MinigamePoint(value, BLANK_ICON))
-				.forEach(worldMapPointManager::add);
-		}
-
-		if (config.normalTeleportIcon()
-			|| config.ancientTeleportIcon()
-			|| config.lunarTeleportIcon()
-			|| config.arceuusTeleportIcon()
-			|| config.jewelleryTeleportIcon()
-			|| config.miscellaneousTeleportIcon()
-			|| config.scrollTeleportIcon())
-		{
-			createMagicTeleportPoints();
-		}
+		agilityLevel = client.getRealSkillLevel(Skill.AGILITY);
+		woodcuttingLevel = client.getRealSkillLevel(Skill.WOODCUTTING);
+		updateShownIcons();
 	}
 
 	@Override
@@ -223,29 +121,131 @@ public class WorldMapPlugin extends Plugin
 		worldMapPointManager.removeIf(AgilityShortcutPoint.class::isInstance);
 		worldMapPointManager.removeIf(QuestStartPoint.class::isInstance);
 		worldMapPointManager.removeIf(TeleportPoint.class::isInstance);
+		worldMapPointManager.removeIf(TransportationPoint.class::isInstance);
 		worldMapPointManager.removeIf(MinigamePoint.class::isInstance);
+		worldMapPointManager.removeIf(FarmingPatchPoint.class::isInstance);
+		worldMapPointManager.removeIf(RareTreePoint.class::isInstance);
+		agilityLevel = 0;
+		woodcuttingLevel = 0;
 	}
 
 	@Subscribe
-	public void onXpChanged(ExperienceChanged event)
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals(CONFIG_KEY))
+		{
+			return;
+		}
+
+		updateShownIcons();
+	}
+
+	@Subscribe
+	public void onExperienceChanged(ExperienceChanged event)
 	{
 		if (event.getSkill() == Skill.AGILITY)
 		{
 			int newAgilityLevel = Experience.getLevelForXp(client.getSkillExperience(Skill.AGILITY));
-			if (config.agilityShortcutLevelIcon() && newAgilityLevel != agilityLevel)
+			if (newAgilityLevel != agilityLevel)
 			{
 				agilityLevel = newAgilityLevel;
+				updateAgilityIcons();
+			}
+		}
 
-				worldMapPointManager.removeIf(AgilityShortcutPoint.class::isInstance);
-				Arrays.stream(AgilityShortcutLocation.values())
-					.map(value -> new AgilityShortcutPoint(value, config.agilityShortcutLevelIcon() && value.getLevelReq() > agilityLevel ? NOPE_ICON : BLANK_ICON))
-					.forEach(worldMapPointManager::add);
+		if (event.getSkill() == Skill.WOODCUTTING)
+		{
+			int newWoodcutLevel = Experience.getLevelForXp(client.getSkillExperience(Skill.WOODCUTTING));
+			if (newWoodcutLevel != woodcuttingLevel)
+			{
+				woodcuttingLevel = newWoodcutLevel;
+				updateRareTreeIcons();
 			}
 		}
 	}
 
-	private void createMagicTeleportPoints()
+	private void updateAgilityIcons()
 	{
+		worldMapPointManager.removeIf(AgilityShortcutPoint.class::isInstance);
+
+		if (config.agilityShortcutLevelIcon() || config.agilityShortcutTooltips())
+		{
+			Arrays.stream(AgilityShortcut.values())
+				.filter(value -> value.getWorldMapLocation() != null)
+				.map(value -> new AgilityShortcutPoint(value,
+					agilityLevel > 0 && config.agilityShortcutLevelIcon() && value.getLevel() > agilityLevel ? NOPE_ICON : BLANK_ICON,
+					config.agilityShortcutTooltips()))
+				.forEach(worldMapPointManager::add);
+		}
+	}
+
+	private void updateRareTreeIcons()
+	{
+		worldMapPointManager.removeIf(RareTreePoint.class::isInstance);
+
+		if (config.rareTreeLevelIcon() || config.rareTreeTooltips())
+		{
+			Arrays.stream(RareTreeLocation.values()).forEach(rareTree ->
+				Arrays.stream(rareTree.getLocations())
+					.map(point -> new RareTreePoint(point,
+						rareTree.getTooltip(),
+						woodcuttingLevel > 0 && config.rareTreeLevelIcon() &&
+							rareTree.getLevelReq() > woodcuttingLevel ? NOPE_ICON : BLANK_ICON,
+						config.rareTreeTooltips()))
+					.forEach(worldMapPointManager::add));
+		}
+	}
+
+	private void updateShownIcons()
+	{
+		updateAgilityIcons();
+		updateRareTreeIcons();
+
+		worldMapPointManager.removeIf(FairyRingPoint.class::isInstance);
+		if (config.fairyRingIcon() || config.fairyRingTooltips())
+		{
+			Arrays.stream(FairyRingLocation.values())
+				.map(value -> new FairyRingPoint(value,
+					config.fairyRingIcon() ? FAIRY_TRAVEL_ICON : BLANK_ICON,
+					config.fairyRingTooltips()))
+				.forEach(worldMapPointManager::add);
+		}
+
+		worldMapPointManager.removeIf(MinigamePoint.class::isInstance);
+		if (config.minigameTooltip())
+		{
+			Arrays.stream(MinigameLocation.values())
+				.map(value -> new MinigamePoint(value, BLANK_ICON))
+				.forEach(worldMapPointManager::add);
+		}
+
+		worldMapPointManager.removeIf(QuestStartPoint.class::isInstance);
+		if (config.questStartTooltips())
+		{
+			Arrays.stream(QuestStartLocation.values())
+				.map(value -> new QuestStartPoint(value, BLANK_ICON))
+				.forEach(worldMapPointManager::add);
+		}
+
+		worldMapPointManager.removeIf(TransportationPoint.class::isInstance);
+		if (config.transportationTeleportTooltips())
+		{
+			Arrays.stream(TransportationPointLocation.values())
+					.map(value -> new TransportationPoint(value, BLANK_ICON))
+					.forEach((worldMapPointManager::add));
+		}
+
+		worldMapPointManager.removeIf(FarmingPatchPoint.class::isInstance);
+		if (config.farmingPatchTooltips())
+		{
+			Arrays.stream(FarmingPatchLocation.values()).forEach(location ->
+				Arrays.stream(location.getLocations())
+					.map(point -> new FarmingPatchPoint(point, location.getTooltip(), BLANK_ICON))
+					.forEach(worldMapPointManager::add)
+			);
+		}
+
+		worldMapPointManager.removeIf(TeleportPoint.class::isInstance);
 		Arrays.stream(TeleportLocationData.values())
 			.filter(data ->
 			{

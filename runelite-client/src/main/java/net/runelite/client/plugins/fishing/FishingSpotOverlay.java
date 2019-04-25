@@ -27,6 +27,7 @@ package net.runelite.client.plugins.fishing;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.Polygon;
 import java.awt.image.BufferedImage;
 import java.time.Duration;
 import java.time.Instant;
@@ -45,11 +46,13 @@ import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.ProgressPieComponent;
+import net.runelite.client.util.ImageUtil;
 
 class FishingSpotOverlay extends Overlay
 {
 	private static final Duration MINNOW_MOVE = Duration.ofSeconds(15);
 	private static final Duration MINNOW_WARN = Duration.ofSeconds(3);
+	private static final int ONE_TICK_AERIAL_FISHING = 3;
 
 	private final FishingPlugin plugin;
 	private final FishingConfig config;
@@ -78,17 +81,16 @@ class FishingSpotOverlay extends Overlay
 			return null;
 		}
 
-		NPC[] fishingSpots = plugin.getFishingSpots();
-		if (fishingSpots == null)
-		{
-			return null;
-		}
-
-		for (NPC npc : fishingSpots)
+		for (NPC npc : plugin.getFishingSpots())
 		{
 			FishingSpot spot = FishingSpot.getSPOTS().get(npc.getId());
 
 			if (spot == null)
+			{
+				continue;
+			}
+
+			if (config.onlyCurrentSpot() && plugin.getCurrentSpot() != null && plugin.getCurrentSpot() != spot)
 			{
 				continue;
 			}
@@ -107,7 +109,7 @@ class FishingSpotOverlay extends Overlay
 					}
 
 					LocalPoint localPoint = npc.getLocalLocation();
-					Point location = Perspective.worldToCanvas(client, localPoint.getX(), localPoint.getY(), client.getPlane());
+					Point location = Perspective.localToCanvas(client, localPoint, client.getPlane());
 
 					if (location != null)
 					{
@@ -121,27 +123,60 @@ class FishingSpotOverlay extends Overlay
 				}
 			}
 
-			if (config.showIcons())
+			if (config.showSpotTiles())
 			{
-				BufferedImage fishImage = getFishImage(spot);
-				if (fishImage != null)
+				Polygon poly = npc.getCanvasTilePoly();
+
+				if (spot == FishingSpot.COMMON_TENCH
+					&& npc.getWorldLocation().distanceTo2D(client.getLocalPlayer().getWorldLocation()) <= ONE_TICK_AERIAL_FISHING)
 				{
-					OverlayUtil.renderActorOverlayImage(graphics, npc, fishImage, color.darker(), npc.getLogicalHeight());
+					color = Color.GREEN;
+				}
+
+				if (poly != null)
+				{
+					OverlayUtil.renderPolygon(graphics, poly, color.darker());
 				}
 			}
-			else
+
+			if (config.showSpotIcons())
+			{
+				BufferedImage fishImage = itemManager.getImage(spot.getFishSpriteId());;
+
+				if (spot == FishingSpot.COMMON_TENCH
+					&& npc.getWorldLocation().distanceTo2D(client.getLocalPlayer().getWorldLocation()) <= ONE_TICK_AERIAL_FISHING)
+				{
+					fishImage = ImageUtil.outlineImage(itemManager.getImage(spot.getFishSpriteId()), Color.GREEN);
+				}
+
+				if (fishImage != null)
+				{
+					Point imageLocation = npc.getCanvasImageLocation(fishImage, npc.getLogicalHeight());
+					if (imageLocation != null)
+					{
+						OverlayUtil.renderImageLocation(graphics, imageLocation, fishImage);
+					}
+				}
+			}
+
+			if (config.showSpotNames())
 			{
 				String text = spot.getName();
-				OverlayUtil.renderActorOverlay(graphics, npc, text, color.darker());
+				Point textLocation = npc.getCanvasTextLocation(graphics, text, npc.getLogicalHeight() + 40);
+
+				if (spot == FishingSpot.COMMON_TENCH
+					&& npc.getWorldLocation().distanceTo2D(client.getLocalPlayer().getWorldLocation()) <= ONE_TICK_AERIAL_FISHING)
+				{
+					color = Color.GREEN;
+				}
+
+				if (textLocation != null)
+				{
+					OverlayUtil.renderTextLocation(graphics, textLocation, text, color.darker());
+				}
 			}
 		}
 
 		return null;
-	}
-
-	private BufferedImage getFishImage(FishingSpot spot)
-	{
-		BufferedImage fishImage = itemManager.getImage(spot.getFishSpriteId());
-		return fishImage;
 	}
 }

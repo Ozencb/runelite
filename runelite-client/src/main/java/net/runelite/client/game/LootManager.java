@@ -27,8 +27,6 @@ package net.runelite.client.game;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
-import com.google.common.eventbus.EventBus;
-import com.google.common.eventbus.Subscribe;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -50,10 +48,13 @@ import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.ItemDespawned;
 import net.runelite.api.events.ItemQuantityChanged;
 import net.runelite.api.events.ItemSpawned;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.PlayerDespawned;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.events.PlayerLootReceived;
 
@@ -159,8 +160,16 @@ public class LootManager
 		final Tile tile = itemSpawned.getTile();
 		final LocalPoint location = tile.getLocalLocation();
 		final int packed = location.getSceneX() << 8 | location.getSceneY();
-		itemSpawns.put(packed, new ItemStack(item.getId(), item.getQuantity()));
-		log.debug("Item spawn {} location {},{}", item.getId(), location);
+		itemSpawns.put(packed, new ItemStack(item.getId(), item.getQuantity(), location));
+		log.debug("Item spawn {} ({}) location {},{}", item.getId(), item.getQuantity(), location);
+	}
+
+	@Subscribe
+	public void onItemDespawned(ItemDespawned itemDespawned)
+	{
+		final Item item = itemDespawned.getItem();
+		final LocalPoint location = itemDespawned.getTile().getLocalLocation();
+		log.debug("Item despawn {} ({}) location {},{}", item.getId(), item.getQuantity(), location);
 	}
 
 	@Subscribe
@@ -177,7 +186,7 @@ public class LootManager
 			return;
 		}
 
-		itemSpawns.put(packed, new ItemStack(item.getId(), diff));
+		itemSpawns.put(packed, new ItemStack(item.getId(), diff, location));
 	}
 
 	@Subscribe
